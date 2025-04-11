@@ -39,35 +39,32 @@ export async function getLeads(options?: {
   sortOrder?: 'asc' | 'desc';
   filters?: Record<string, any>;
 }): Promise<EnhancedLead[]> {
+  // Start basic query
   let query = supabase.from('leads').select('*');
   
-  // Apply filters explicitly without chaining
+  // Apply filters - Simplified approach using forEach instead of chaining
   if (options?.filters) {
-    const filters = options.filters;
-    Object.keys(filters).forEach(key => {
-      const value = filters[key];
+    Object.entries(options.filters).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
-        // Apply each filter individually to avoid deep type instantiation
+        // Apply each filter individually
         query = query.eq(key, value);
       }
     });
   }
   
-  // Apply sorting without complex chains
+  // Apply sorting
   if (options?.sortBy) {
-    const order = options?.sortOrder === 'desc' ? false : true;
-    query = query.order(options.sortBy, { ascending: order });
+    const ascending = options.sortOrder !== 'desc';
+    query = query.order(options.sortBy, { ascending });
   }
   
-  // Apply pagination directly
+  // Apply pagination
   if (options?.limit) {
     query = query.limit(options.limit);
   }
   
   if (options?.offset) {
-    const start = options.offset;
-    const end = start + (options.limit || 10) - 1;
-    query = query.range(start, end);
+    query = query.range(options.offset, options.offset + (options.limit || 10) - 1);
   }
   
   // Execute the query
