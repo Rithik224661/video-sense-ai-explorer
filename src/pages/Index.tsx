@@ -10,47 +10,74 @@ import { mockVideoInfo, mockTranscript, mockAnalysis, mockChapters } from "@/lib
 import { useToast } from "@/components/ui/use-toast";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useQuery } from "@tanstack/react-query";
+
+// Import our type-safe queries
+import { getVideoAnalysisByUrl, saveVideoAnalysis } from "@/lib/supabase";
 
 const Index = () => {
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [analysisData, setAnalysisData] = useState<VideoAnalysisData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const handleSubmit = async (url: string) => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      // In a real application, this would be an API call to your backend
-      // For now, we'll simulate a delay and use mock data
+  // Use React Query for data fetching
+  const { 
+    data, 
+    isLoading: loading, 
+    error: queryError,
+    refetch
+  } = useQuery({
+    queryKey: ['videoAnalysis', videoUrl],
+    queryFn: async () => {
+      if (!videoUrl) return null;
+      
+      // First check if we already have analysis for this URL
+      const existingAnalysis = await getVideoAnalysisByUrl(videoUrl);
+      if (existingAnalysis) {
+        return existingAnalysis;
+      }
+      
+      // For now, use mock data
+      // In a real application, this would call an API endpoint
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // For development, we're using mock data
-      setAnalysisData({
+      const mockAnalysisData: VideoAnalysisData = {
         videoInfo: mockVideoInfo,
         transcript: mockTranscript,
         chapters: mockChapters,
         analysis: mockAnalysis,
         isLoading: false
-      });
+      };
+      
+      // Save the analysis to the database for future use
+      await saveVideoAnalysis(mockAnalysisData, videoUrl);
+      
+      return mockAnalysisData;
+    },
+    enabled: !!videoUrl,
+    refetchOnWindowFocus: false,
+    staleTime: Infinity,
+  });
+
+  // Update analysis data when query data changes
+  React.useEffect(() => {
+    if (data) {
+      setAnalysisData(data);
       
       toast({
         title: "Analysis Complete",
         description: "Video transcript and analysis have been generated",
       });
-    } catch (err) {
-      console.error("Error processing video:", err);
-      setError("Failed to process video. Please try again or try a different URL.");
-      toast({
-        variant: "destructive",
-        title: "Processing Error",
-        description: "Failed to analyze the video. Please try again.",
-      });
-    } finally {
-      setLoading(false);
     }
+  }, [data, toast]);
+
+  const handleSubmit = async (url: string) => {
+    setVideoUrl(url);
+    setAnalysisData(null);
+    refetch();
   };
+
+  const error = queryError ? (queryError as Error).message : null;
 
   return (
     <div className="min-h-screen bg-background">
