@@ -27,48 +27,86 @@ export async function getLead(id: string): Promise<EnhancedLead | null> {
   }
 }
 
-/**
- * Get all leads with optional filtering and sorting
- * @param options - Query options for filtering and sorting
- * @returns Promise with an array of enhanced leads
- */
-export async function getLeads(options?: {
+// Define a specific type for the filter options to avoid deep type nesting
+type LeadsQueryOptions = {
   limit?: number;
   offset?: number;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
   filters?: Record<string, any>;
-}): Promise<EnhancedLead[]> {
-  // Build the query manually to avoid deep type nesting
-  let query = supabase.from('leads').select('*');
+};
+
+/**
+ * Get all leads with optional filtering and sorting
+ * Using a simplified approach to avoid excessive type instantiation
+ */
+export async function getLeads(options?: LeadsQueryOptions): Promise<EnhancedLead[]> {
+  // Build query parameters to avoid chaining method calls
+  const queryParams: {
+    table: string;
+    select: string;
+    filters: Array<{column: string; value: any}>;
+    orderBy?: {column: string; ascending: boolean};
+    pagination?: {limit?: number; offset?: number};
+  } = {
+    table: 'leads',
+    select: '*',
+    filters: []
+  };
   
-  // Apply filters one by one if provided
+  // Add filters if provided
   if (options?.filters) {
     for (const [key, value] of Object.entries(options.filters)) {
       if (value !== undefined && value !== null) {
-        query = query.eq(key, value);
+        queryParams.filters.push({column: key, value});
       }
     }
   }
   
-  // Apply sorting if provided
+  // Add sorting if provided
   if (options?.sortBy) {
-    const ascending = options.sortOrder !== 'desc';
-    query = query.order(options.sortBy, { ascending });
+    queryParams.orderBy = {
+      column: options.sortBy,
+      ascending: options.sortOrder !== 'desc'
+    };
   }
   
-  // Apply pagination if provided
-  if (options?.limit) {
-    query = query.limit(options.limit);
+  // Add pagination if provided
+  if (options?.limit || options?.offset) {
+    queryParams.pagination = {
+      limit: options?.limit,
+      offset: options?.offset
+    };
   }
   
-  if (options?.offset) {
-    const start = options.offset;
-    const end = start + (options.limit || 10) - 1;
+  // Execute the query using the query parameters
+  // This approach avoids deep method chaining that causes type recursion
+  let query = supabase.from(queryParams.table).select(queryParams.select);
+  
+  // Apply filters
+  for (const filter of queryParams.filters) {
+    query = query.eq(filter.column, filter.value);
+  }
+  
+  // Apply sorting
+  if (queryParams.orderBy) {
+    query = query.order(queryParams.orderBy.column, {
+      ascending: queryParams.orderBy.ascending
+    });
+  }
+  
+  // Apply pagination
+  if (queryParams.pagination?.limit) {
+    query = query.limit(queryParams.pagination.limit);
+  }
+  
+  if (queryParams.pagination?.offset) {
+    const start = queryParams.pagination.offset;
+    const end = start + (queryParams.pagination.limit || 10) - 1;
     query = query.range(start, end);
   }
   
-  // Execute the query
+  // Execute the final query
   const { data, error } = await query;
   
   if (error || !data) {
@@ -77,9 +115,17 @@ export async function getLeads(options?: {
   }
   
   try {
-    // Use type assertion to help TypeScript understand the data structure
-    const typedData = data as Lead[];
-    const validatedLeads = typedData.map(lead => validateLead(lead));
+    // Use a type assertion and avoid complex type inference
+    const typedData = data as unknown as Lead[];
+    // Process each lead separately to avoid chained type inference
+    const validatedLeads: Lead[] = [];
+    for (const lead of typedData) {
+      try {
+        validatedLeads.push(validateLead(lead));
+      } catch (err) {
+        console.error('Individual lead validation error:', err);
+      }
+    }
     return toEnhancedLeads(validatedLeads);
   } catch (err) {
     console.error('Leads validation error:', err);
