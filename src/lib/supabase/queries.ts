@@ -50,36 +50,37 @@ export async function getLeads(options?: {
   sortOrder?: 'asc' | 'desc';
   filters?: Record<string, any>;
 }): Promise<EnhancedLead[]> {
-  // Fix: Simplify query building to avoid excessive type instantiation
-  const query = supabase.from('leads');
-  let queryBuilder = query.select('*');
+  // Create a base query
+  let query = supabase.from('leads').select('*');
   
   // Apply filters if provided
   if (options?.filters) {
-    Object.entries(options.filters).forEach(([key, value]) => {
+    for (const [key, value] of Object.entries(options.filters)) {
       if (value !== undefined && value !== null) {
-        queryBuilder = queryBuilder.eq(key, value);
+        query = query.eq(key, value);
       }
-    });
+    }
   }
   
   // Apply sorting if provided
   if (options?.sortBy) {
-    queryBuilder = queryBuilder.order(options.sortBy, { 
-      ascending: options.sortOrder !== 'desc' 
-    });
+    const ascending = options.sortOrder !== 'desc';
+    query = query.order(options.sortBy, { ascending });
   }
   
   // Apply pagination if provided
   if (options?.limit) {
-    queryBuilder = queryBuilder.limit(options.limit);
+    query = query.limit(options.limit);
   }
   
   if (options?.offset) {
-    queryBuilder = queryBuilder.range(options.offset, options.offset + (options.limit || 10) - 1);
+    query = query.range(
+      options.offset, 
+      options.offset + (options.limit || 10) - 1
+    );
   }
   
-  const { data, error } = await queryBuilder;
+  const { data, error } = await query;
   
   if (error || !data) return [];
   
