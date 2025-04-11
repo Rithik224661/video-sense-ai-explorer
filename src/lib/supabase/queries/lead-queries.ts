@@ -39,32 +39,33 @@ export async function getLeads(options?: {
   sortOrder?: 'asc' | 'desc';
   filters?: Record<string, any>;
 }): Promise<EnhancedLead[]> {
-  // Start basic query
+  // Build the query manually to avoid deep type nesting
   let query = supabase.from('leads').select('*');
   
-  // Apply filters - Simplified approach using forEach instead of chaining
+  // Apply filters one by one if provided
   if (options?.filters) {
-    Object.entries(options.filters).forEach(([key, value]) => {
+    for (const [key, value] of Object.entries(options.filters)) {
       if (value !== undefined && value !== null) {
-        // Apply each filter individually
         query = query.eq(key, value);
       }
-    });
+    }
   }
   
-  // Apply sorting
+  // Apply sorting if provided
   if (options?.sortBy) {
     const ascending = options.sortOrder !== 'desc';
     query = query.order(options.sortBy, { ascending });
   }
   
-  // Apply pagination
+  // Apply pagination if provided
   if (options?.limit) {
     query = query.limit(options.limit);
   }
   
   if (options?.offset) {
-    query = query.range(options.offset, options.offset + (options.limit || 10) - 1);
+    const start = options.offset;
+    const end = start + (options.limit || 10) - 1;
+    query = query.range(start, end);
   }
   
   // Execute the query
@@ -76,7 +77,9 @@ export async function getLeads(options?: {
   }
   
   try {
-    const validatedLeads = data.map(lead => validateLead(lead));
+    // Use type assertion to help TypeScript understand the data structure
+    const typedData = data as Lead[];
+    const validatedLeads = typedData.map(lead => validateLead(lead));
     return toEnhancedLeads(validatedLeads);
   } catch (err) {
     console.error('Leads validation error:', err);
