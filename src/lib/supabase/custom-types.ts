@@ -1,3 +1,4 @@
+
 import type { Database } from '@/integrations/supabase/types';
 
 /**
@@ -33,13 +34,34 @@ export type EnhancedLead = Lead & {
  * Type for creating a new lead
  * Omits auto-generated fields
  */
-export type LeadCreate = Omit<Lead, 'id' | 'created_at' | 'updated_at'>;
+export type LeadCreate = {
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+  job_title?: string | null;
+  company?: string | null;
+  priority?: string | null;
+  source?: string | null;
+  ai_score?: number | null;
+  validation_issues?: any | null;
+};
 
 /**
  * Type for updating an existing lead
  * Makes all fields optional except id
  */
-export type LeadUpdate = Partial<Omit<Lead, 'id' | 'created_at' | 'updated_at'>> & { id: string };
+export type LeadUpdate = {
+  id: string;
+  name?: string;
+  email?: string | null;
+  phone?: string | null;
+  job_title?: string | null;
+  company?: string | null;
+  priority?: string | null;
+  source?: string | null;
+  ai_score?: number | null;
+  validation_issues?: any | null;
+};
 
 /**
  * Video-related types for YouTube Sense AI feature
@@ -57,6 +79,8 @@ import {
 
 /**
  * Type for storing video analysis in the database
+ * Note: This table doesn't exist yet in the database,
+ * but we define the type for future implementation
  */
 export type VideoAnalysisRecord = {
   id: string;
@@ -73,4 +97,11 @@ export type VideoAnalysisRecord = {
 /**
  * Type for creating a new video analysis record
  */
-export type VideoAnalysisCreate = Omit<VideoAnalysisRecord, 'id' | 'created_at' | 'updated_at'>;
+export type VideoAnalysisCreate = {
+  video_url: string;
+  video_info: VideoInfo;
+  transcript: TranscriptSegment[];
+  chapters?: TranscriptChapter[];
+  analysis?: AIAnalysisResult;
+  user_id?: string;
+};

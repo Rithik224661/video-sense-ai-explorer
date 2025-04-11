@@ -23,18 +23,33 @@ export const leadSchema = z.object({
 /**
  * Zod schema for validating Lead creation
  */
-export const leadCreateSchema = leadSchema
-  .omit({ id: true, created_at: true, updated_at: true })
-  .partial()
-  .extend({ name: z.string().min(1, "Name is required") });
+export const leadCreateSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  email: z.string().email().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  job_title: z.string().nullable().optional(),
+  company: z.string().nullable().optional(),
+  priority: z.string().nullable().optional(),
+  source: z.string().nullable().optional(),
+  ai_score: z.number().int().nullable().optional(),
+  validation_issues: z.any().nullable().optional()
+});
 
 /**
  * Zod schema for validating Lead updates
  */
-export const leadUpdateSchema = leadSchema
-  .omit({ created_at: true, updated_at: true })
-  .partial()
-  .extend({ id: z.string().uuid() });
+export const leadUpdateSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1, "Name is required").optional(),
+  email: z.string().email().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  job_title: z.string().nullable().optional(),
+  company: z.string().nullable().optional(),
+  priority: z.string().nullable().optional(),
+  source: z.string().nullable().optional(),
+  ai_score: z.number().int().nullable().optional(),
+  validation_issues: z.any().nullable().optional()
+});
 
 /**
  * Zod schema for video information
@@ -93,7 +108,7 @@ export const videoAnalysisCreateSchema = z.object({
  * @returns Validated data or throws an error
  */
 export function validateLead(data: unknown): Lead {
-  return leadSchema.parse(data);
+  return leadSchema.parse(data) as Lead;
 }
 
 /**
@@ -102,7 +117,7 @@ export function validateLead(data: unknown): Lead {
  * @returns Validated data or throws an error
  */
 export function validateLeadCreate(data: unknown): LeadCreate {
-  return leadCreateSchema.parse(data);
+  return leadCreateSchema.parse(data) as LeadCreate;
 }
 
 /**
@@ -111,7 +126,7 @@ export function validateLeadCreate(data: unknown): LeadCreate {
  * @returns Validated data or throws an error
  */
 export function validateLeadUpdate(data: unknown): LeadUpdate {
-  return leadUpdateSchema.parse(data);
+  return leadUpdateSchema.parse(data) as LeadUpdate;
 }
 
 /**
@@ -120,5 +135,5 @@ export function validateLeadUpdate(data: unknown): LeadUpdate {
  * @returns Validated data or throws an error
  */
 export function validateVideoAnalysisCreate(data: unknown): VideoAnalysisCreate {
-  return videoAnalysisCreateSchema.parse(data);
+  return videoAnalysisCreateSchema.parse(data) as VideoAnalysisCreate;
 }

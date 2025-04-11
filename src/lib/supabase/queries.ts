@@ -1,16 +1,15 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { 
-  Lead, EnhancedLead, LeadCreate, LeadUpdate,
-  VideoAnalysisRecord, VideoAnalysisCreate 
+  Lead, EnhancedLead, LeadCreate, LeadUpdate
 } from './custom-types';
 import { toEnhancedLead, toEnhancedLeads } from './adapters/lead-adapter';
-import { toVideoAnalysisData } from './adapters/video-analysis-adapter';
 import { 
   validateLead, validateLeadCreate, validateLeadUpdate,
   validateVideoAnalysisCreate 
 } from './validators';
 import { VideoAnalysisData } from '@/lib/types';
+import { fromVideoAnalysisData, toVideoAnalysisData } from './adapters/video-analysis-adapter';
 
 /**
  * Lead queries
@@ -156,7 +155,14 @@ export async function deleteLead(id: string): Promise<boolean> {
 
 /**
  * Video Analysis queries
+ * 
+ * Note: These are mock implementations since the video_analyses table
+ * doesn't exist in the database yet. In a real application, these would
+ * interact with an actual database table.
  */
+
+// In-memory storage for demo purposes
+const videoAnalysesStore: Record<string, VideoAnalysisData & { id: string, video_url: string }> = {};
 
 /**
  * Get a video analysis by ID
@@ -164,15 +170,15 @@ export async function deleteLead(id: string): Promise<boolean> {
  * @returns Promise with the video analysis data or null
  */
 export async function getVideoAnalysis(id: string): Promise<VideoAnalysisData | null> {
-  const { data, error } = await supabase
-    .from('video_analyses')
-    .select('*')
-    .eq('id', id)
-    .single();
-    
-  if (error || !data) return null;
-  
-  return toVideoAnalysisData(data as VideoAnalysisRecord);
+  // Mock implementation
+  const analysis = videoAnalysesStore[id];
+  return analysis ? {
+    videoInfo: analysis.videoInfo,
+    transcript: analysis.transcript,
+    chapters: analysis.chapters,
+    analysis: analysis.analysis,
+    isLoading: false
+  } : null;
 }
 
 /**
@@ -181,15 +187,15 @@ export async function getVideoAnalysis(id: string): Promise<VideoAnalysisData | 
  * @returns Promise with the video analysis data or null
  */
 export async function getVideoAnalysisByUrl(videoUrl: string): Promise<VideoAnalysisData | null> {
-  const { data, error } = await supabase
-    .from('video_analyses')
-    .select('*')
-    .eq('video_url', videoUrl)
-    .single();
-    
-  if (error || !data) return null;
-  
-  return toVideoAnalysisData(data as VideoAnalysisRecord);
+  // Mock implementation
+  const analysis = Object.values(videoAnalysesStore).find(a => a.video_url === videoUrl);
+  return analysis ? {
+    videoInfo: analysis.videoInfo,
+    transcript: analysis.transcript,
+    chapters: analysis.chapters,
+    analysis: analysis.analysis,
+    isLoading: false
+  } : null;
 }
 
 /**
@@ -205,14 +211,10 @@ export async function saveVideoAnalysis(
   userId?: string
 ): Promise<string | null> {
   try {
-    // Check if analysis already exists for this URL
-    const existing = await getVideoAnalysisByUrl(videoUrl);
-    if (existing) {
-      // Record already exists, we could update it here if needed
-      return null;
-    }
+    // Mock implementation
+    const id = `analysis-${Date.now()}`;
     
-    // Create new analysis record
+    // Validate the data
     const createData = {
       video_url: videoUrl,
       video_info: analysisData.videoInfo,
@@ -222,20 +224,17 @@ export async function saveVideoAnalysis(
       user_id: userId
     };
     
-    const validatedData = validateVideoAnalysisCreate(createData);
+    validateVideoAnalysisCreate(createData);
     
-    const { data, error } = await supabase
-      .from('video_analyses')
-      .insert(validatedData)
-      .select('id')
-      .single();
-      
-    if (error || !data) {
-      console.error('Save video analysis error:', error);
-      return null;
-    }
+    // Store in our mock database
+    videoAnalysesStore[id] = {
+      ...analysisData,
+      id,
+      video_url: videoUrl
+    };
     
-    return data.id;
+    console.log('Saved video analysis with ID:', id);
+    return id;
   } catch (err) {
     console.error('Video analysis validation error:', err);
     return null;
