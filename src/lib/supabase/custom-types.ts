@@ -1,5 +1,5 @@
-
 import type { Database } from '@/integrations/supabase/types';
+import { Json } from '@/integrations/supabase/types';
 
 /**
  * Type definitions for database tables
@@ -43,7 +43,7 @@ export type LeadCreate = {
   priority?: string | null;
   source?: string | null;
   ai_score?: number | null;
-  validation_issues?: any | null;
+  validation_issues?: Json | null;
 };
 
 /**
@@ -60,7 +60,7 @@ export type LeadUpdate = {
   priority?: string | null;
   source?: string | null;
   ai_score?: number | null;
-  validation_issues?: any | null;
+  validation_issues?: Json | null;
 };
 
 /**
@@ -78,23 +78,6 @@ import {
 } from '@/lib/types';
 
 /**
- * Type for storing video analysis in the database
- * Note: This table doesn't exist yet in the database,
- * but we define the type for future implementation
- */
-export type VideoAnalysisRecord = {
-  id: string;
-  video_url: string;
-  video_info: VideoInfo;
-  transcript: TranscriptSegment[];
-  chapters?: TranscriptChapter[];
-  analysis?: AIAnalysisResult;
-  user_id?: string;
-  created_at: string;
-  updated_at: string;
-};
-
-/**
  * Type for creating a new video analysis record
  */
 export type VideoAnalysisCreate = {
@@ -104,4 +87,15 @@ export type VideoAnalysisCreate = {
   chapters?: TranscriptChapter[];
   analysis?: AIAnalysisResult;
   user_id?: string;
+};
+
+/**
+ * Type for video analysis record in the database
+ * Note: This table doesn't exist yet in the database,
+ * so we're using this for our mock implementation
+ */
+export type VideoAnalysisRecord = VideoAnalysisCreate & {
+  id: string;
+  created_at: string;
+  updated_at: string;
 };

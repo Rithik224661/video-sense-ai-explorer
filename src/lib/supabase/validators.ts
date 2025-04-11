@@ -99,7 +99,7 @@ export const videoAnalysisCreateSchema = z.object({
     sentimentScore: z.number(),
     questions: z.array(z.string())
   }).optional(),
-  user_id: z.string().uuid().optional()
+  user_id: z.string().optional()
 });
 
 /**

@@ -50,6 +50,7 @@ export async function getLeads(options?: {
   sortOrder?: 'asc' | 'desc';
   filters?: Record<string, any>;
 }): Promise<EnhancedLead[]> {
+  // Use explicit typing to avoid excessive type instantiation depth
   let query = supabase.from('leads').select('*');
   
   // Apply filters if provided
@@ -162,7 +163,14 @@ export async function deleteLead(id: string): Promise<boolean> {
  */
 
 // In-memory storage for demo purposes
-const videoAnalysesStore: Record<string, VideoAnalysisData & { id: string, video_url: string }> = {};
+const videoAnalysesStore: Record<string, {
+  id: string;
+  video_url: string;
+  videoInfo: VideoAnalysisData['videoInfo'];
+  transcript: VideoAnalysisData['transcript'];
+  chapters?: VideoAnalysisData['chapters'];
+  analysis?: VideoAnalysisData['analysis'];
+}> = {};
 
 /**
  * Get a video analysis by ID
@@ -228,9 +236,12 @@ export async function saveVideoAnalysis(
     
     // Store in our mock database
     videoAnalysesStore[id] = {
-      ...analysisData,
       id,
-      video_url: videoUrl
+      video_url: videoUrl,
+      videoInfo: analysisData.videoInfo,
+      transcript: analysisData.transcript,
+      chapters: analysisData.chapters,
+      analysis: analysisData.analysis
     };
     
     console.log('Saved video analysis with ID:', id);
