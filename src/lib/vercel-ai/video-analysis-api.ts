@@ -68,8 +68,8 @@ export function useVideoAnalysis(videoUrl: string | null) {
            - Suggested follow-up questions
       `;
       
-      const stream = await streamText({
-        model: 'gpt-4o-mini',
+      const response = await streamText({
+        model: 'gpt-4o-mini', // Using as string is valid with the latest ai package
         messages: [
           { role: 'system', content: 'You are a video analysis AI that can generate detailed transcripts, chapters, and insights. Provide structured output for YouTube videos.' },
           { role: 'user', content: prompt }
@@ -80,7 +80,7 @@ export function useVideoAnalysis(videoUrl: string | null) {
 
       // Process the streamed response
       let fullResponse = '';
-      for await (const chunk of stream) {
+      for await (const chunk of response) {
         fullResponse += chunk;
       }
 
@@ -319,7 +319,7 @@ function generateAnalysis(aiResponse: string) {
 /**
  * Get a video analysis by URL
  */
-export async function getVideoAnalysisByUrl(videoUrl: string): Promise<VideoAnalysisData | null> {
+export function getVideoAnalysisByUrl(videoUrl: string): VideoAnalysisData | null {
   if (videoAnalysesStore[videoUrl]) {
     return videoAnalysesStore[videoUrl];
   }
@@ -329,18 +329,20 @@ export async function getVideoAnalysisByUrl(videoUrl: string): Promise<VideoAnal
 /**
  * Save video analysis to our storage
  */
-export async function saveVideoAnalysis(
+export function saveVideoAnalysis(
   analysisData: VideoAnalysisData,
   videoUrl: string,
 ): Promise<boolean> {
-  try {
-    videoAnalysesStore[videoUrl] = {
-      ...analysisData,
-      isLoading: false
-    };
-    return true;
-  } catch (err) {
-    console.error('Error saving video analysis:', err);
-    return false;
-  }
+  return new Promise((resolve) => {
+    try {
+      videoAnalysesStore[videoUrl] = {
+        ...analysisData,
+        isLoading: false
+      };
+      resolve(true);
+    } catch (err) {
+      console.error('Error saving video analysis:', err);
+      resolve(false);
+    }
+  });
 }

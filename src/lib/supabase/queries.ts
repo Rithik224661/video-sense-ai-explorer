@@ -1,20 +1,31 @@
 
-/**
- * Re-export all query functions from their respective modules
- */
+import { Client } from '@supabase/supabase-js';
+import type { Database } from '@/lib/supabase/custom-types';
 
-// Export lead-related queries
-export { 
-  getLead,
-  getLeads,
+// Import individual queries from queries folders
+import {
   createLead,
+  getLeadById,
+  getLeads,
   updateLead,
   deleteLead
 } from './queries/lead-queries';
 
-// Export video analysis queries
-export {
-  getVideoAnalysis,
-  getVideoAnalysisByUrl,
-  saveVideoAnalysis
+import {
+  saveVideoAnalysis,
+  getVideoAnalysisByUrl
 } from './queries/video-analysis-queries';
+
+// Re-export all functions
+export {
+  // Lead queries
+  createLead,
+  getLeadById,
+  getLeads,
+  updateLead,
+  deleteLead,
+  
+  // Video analysis queries
+  saveVideoAnalysis,
+  getVideoAnalysisByUrl
+};
