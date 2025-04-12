@@ -6,78 +6,36 @@ import AIAnalysis from "@/components/AIAnalysis";
 import VideoInfoCard from "@/components/VideoInfoCard";
 import LoadingState from "@/components/LoadingState";
 import { VideoAnalysisData } from "@/lib/types";
-import { mockVideoInfo, mockTranscript, mockAnalysis, mockChapters } from "@/lib/mockData";
-import { useToast } from "@/components/ui/use-toast";
-import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useQuery } from "@tanstack/react-query";
-
-// Import our type-safe queries
-import { getVideoAnalysisByUrl, saveVideoAnalysis } from "@/lib/supabase";
+import { AlertCircle } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
+import { useVideoAnalysis } from "@/lib/vercel-ai/video-analysis-api";
 
 const Index = () => {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [analysisData, setAnalysisData] = useState<VideoAnalysisData | null>(null);
   const { toast } = useToast();
-
-  // Use React Query for data fetching
+  
+  // Use our custom hook instead of React Query
   const { 
-    data, 
-    isLoading: loading, 
-    error: queryError,
-    refetch
-  } = useQuery({
-    queryKey: ['videoAnalysis', videoUrl],
-    queryFn: async () => {
-      if (!videoUrl) return null;
-      
-      // First check if we already have analysis for this URL
-      const existingAnalysis = await getVideoAnalysisByUrl(videoUrl);
-      if (existingAnalysis) {
-        return existingAnalysis;
-      }
-      
-      // For now, use mock data
-      // In a real application, this would call an API endpoint
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const mockAnalysisData: VideoAnalysisData = {
-        videoInfo: mockVideoInfo,
-        transcript: mockTranscript,
-        chapters: mockChapters,
-        analysis: mockAnalysis,
-        isLoading: false
-      };
-      
-      // Save the analysis to the database for future use
-      await saveVideoAnalysis(mockAnalysisData, videoUrl);
-      
-      return mockAnalysisData;
-    },
-    enabled: !!videoUrl,
-    refetchOnWindowFocus: false,
-    staleTime: Infinity,
-  });
+    analysisData, 
+    isLoading, 
+    error, 
+    fetchAnalysis 
+  } = useVideoAnalysis(videoUrl);
 
-  // Update analysis data when query data changes
+  const handleSubmit = async (url: string) => {
+    setVideoUrl(url);
+    fetchAnalysis(url);
+  };
+
   React.useEffect(() => {
-    if (data) {
-      setAnalysisData(data);
-      
+    if (analysisData) {
       toast({
         title: "Analysis Complete",
         description: "Video transcript and analysis have been generated",
       });
     }
-  }, [data, toast]);
-
-  const handleSubmit = async (url: string) => {
-    setVideoUrl(url);
-    setAnalysisData(null);
-    refetch();
-  };
-
-  const error = queryError ? (queryError as Error).message : null;
+  }, [analysisData, toast]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -96,7 +54,7 @@ const Index = () => {
 
       <div className="container px-4 py-6 md:px-6 md:py-8">
         <div className="mx-auto max-w-6xl space-y-8">
-          <VideoInput onSubmit={handleSubmit} isLoading={loading} />
+          <VideoInput onSubmit={handleSubmit} isLoading={isLoading} />
 
           {error && (
             <Alert variant="destructive">
@@ -105,9 +63,9 @@ const Index = () => {
             </Alert>
           )}
 
-          {loading && <LoadingState />}
+          {isLoading && <LoadingState />}
 
-          {analysisData && !loading && (
+          {analysisData && !isLoading && (
             <div className="grid gap-6 md:grid-cols-12">
               <div className="md:col-span-4">
                 <div className="space-y-6 sticky top-6">
@@ -126,7 +84,7 @@ const Index = () => {
             </div>
           )}
 
-          {!analysisData && !loading && !error && (
+          {!analysisData && !isLoading && !error && (
             <div className="text-center py-12">
               <p className="text-muted-foreground">
                 Enter a YouTube URL above to get started

@@ -1,60 +1,24 @@
 
+// We're moving to using Vercel AI SDK instead of Supabase
+// This file now re-exports functions from our Vercel AI implementation
+import { 
+  getVideoAnalysisByUrl, 
+  saveVideoAnalysis 
+} from '@/lib/vercel-ai/video-analysis-api';
 import { VideoAnalysisData } from '@/lib/types';
-import { validateVideoAnalysisCreate } from '../validators';
-
-// In-memory storage for demo purposes
-const videoAnalysesStore: Record<string, {
-  id: string;
-  video_url: string;
-  videoInfo: VideoAnalysisData['videoInfo'];
-  transcript: VideoAnalysisData['transcript'];
-  chapters?: VideoAnalysisData['chapters'];
-  analysis?: VideoAnalysisData['analysis'];
-}> = {};
 
 /**
- * Get a video analysis by ID
- * @param id - The video analysis ID to fetch
- * @returns Promise with the video analysis data or null
- */
-export async function getVideoAnalysis(id: string): Promise<VideoAnalysisData | null> {
-  // Mock implementation
-  const analysis = videoAnalysesStore[id];
-  if (!analysis) return null;
-  
-  return {
-    videoInfo: analysis.videoInfo,
-    transcript: analysis.transcript,
-    chapters: analysis.chapters,
-    analysis: analysis.analysis,
-    isLoading: false
-  };
-}
-
-/**
- * Get video analysis by URL
+ * Get a video analysis by URL (proxy to our Vercel AI implementation)
  * @param videoUrl - The YouTube URL to search for
  * @returns Promise with the video analysis data or null
  */
-export async function getVideoAnalysisByUrl(videoUrl: string): Promise<VideoAnalysisData | null> {
-  // Mock implementation
-  const analysis = Object.values(videoAnalysesStore).find(a => a.video_url === videoUrl);
-  if (!analysis) return null;
-  
-  return {
-    videoInfo: analysis.videoInfo,
-    transcript: analysis.transcript,
-    chapters: analysis.chapters,
-    analysis: analysis.analysis,
-    isLoading: false
-  };
-}
+export { getVideoAnalysisByUrl };
 
 /**
- * Save video analysis to the database
+ * Save video analysis (proxy to our Vercel AI implementation)
  * @param analysisData - The video analysis data to save
  * @param videoUrl - The YouTube URL
- * @param userId - Optional user ID for authentication contexts
+ * @param userId - Optional user ID for authentication contexts (ignored in Vercel AI implementation)
  * @returns Promise with the saved record ID or null
  */
 export async function saveVideoAnalysis(
@@ -62,36 +26,17 @@ export async function saveVideoAnalysis(
   videoUrl: string,
   userId?: string
 ): Promise<string | null> {
-  try {
-    // Mock implementation
-    const id = `analysis-${Date.now()}`;
-    
-    // Validate the data
-    const createData = {
-      video_url: videoUrl,
-      video_info: analysisData.videoInfo,
-      transcript: analysisData.transcript,
-      chapters: analysisData.chapters,
-      analysis: analysisData.analysis,
-      user_id: userId
-    };
-    
-    validateVideoAnalysisCreate(createData);
-    
-    // Store in our mock database
-    videoAnalysesStore[id] = {
-      id,
-      video_url: videoUrl,
-      videoInfo: analysisData.videoInfo,
-      transcript: analysisData.transcript,
-      chapters: analysisData.chapters,
-      analysis: analysisData.analysis
-    };
-    
-    console.log('Saved video analysis with ID:', id);
-    return id;
-  } catch (err) {
-    console.error('Video analysis validation error:', err);
-    return null;
-  }
+  const success = await saveVideoAnalysis(analysisData, videoUrl);
+  return success ? videoUrl : null;
+}
+
+/**
+ * Get a video analysis by ID (compatibility function, not fully implemented)
+ * @param id - The video analysis ID to fetch
+ * @returns Promise with the video analysis data or null
+ */
+export async function getVideoAnalysis(id: string): Promise<VideoAnalysisData | null> {
+  // This is just a stub for compatibility
+  // In our new implementation, we use URLs as IDs
+  return getVideoAnalysisByUrl(id);
 }

@@ -38,55 +38,59 @@ type LeadsQueryOptions = {
 
 /**
  * Get all leads with optional filtering and sorting
- * Using a simplified approach without excessive method chaining
+ * Completely refactored to avoid type instantiation depth issues
  */
 export async function getLeads(options?: LeadsQueryOptions): Promise<EnhancedLead[]> {
-  // Start with the base query
-  let query = supabase.from('leads').select('*');
-  
-  // Apply filters if provided
-  if (options?.filters) {
-    for (const [key, value] of Object.entries(options.filters)) {
-      if (value !== undefined && value !== null) {
-        query = query.eq(key, value);
+  try {
+    // Execute a simple query and handle filters manually
+    const { data, error } = await supabase
+      .from('leads')
+      .select('*');
+    
+    if (error) throw error;
+    if (!data || !Array.isArray(data)) return [];
+    
+    // Cast data to Lead[] to avoid type inference issues
+    const allLeads = data as any[] as Lead[];
+    
+    // Apply filters in memory
+    let filteredLeads = [...allLeads];
+    
+    if (options?.filters) {
+      for (const [key, value] of Object.entries(options.filters)) {
+        if (value !== undefined && value !== null) {
+          filteredLeads = filteredLeads.filter(lead => lead[key as keyof Lead] === value);
+        }
       }
     }
-  }
-  
-  // Apply sorting if provided
-  if (options?.sortBy) {
-    query = query.order(options.sortBy, { 
-      ascending: options.sortOrder !== 'desc' 
-    });
-  }
-  
-  // Apply pagination if provided
-  if (options?.limit) {
-    query = query.limit(options.limit);
-  }
-  
-  if (options?.offset) {
-    const start = options.offset;
-    const end = start + (options.limit || 10) - 1;
-    query = query.range(start, end);
-  }
-  
-  // Execute the query
-  const { data, error } = await query;
-  
-  if (error || !data) {
-    console.error('Error fetching leads:', error);
-    return [];
-  }
-  
-  try {
-    // Process each lead separately to avoid chained type inference
+    
+    // Apply sorting in memory
+    if (options?.sortBy) {
+      const sortKey = options.sortBy as keyof Lead;
+      const sortDir = options.sortOrder === 'desc' ? -1 : 1;
+      
+      filteredLeads.sort((a, b) => {
+        const valA = a[sortKey];
+        const valB = b[sortKey];
+        
+        if (valA === valB) return 0;
+        if (valA === null || valA === undefined) return sortDir;
+        if (valB === null || valB === undefined) return -sortDir;
+        
+        return valA < valB ? -sortDir : sortDir;
+      });
+    }
+    
+    // Apply pagination in memory
+    if (options?.limit || options?.offset) {
+      const offset = options.offset || 0;
+      const limit = options.limit || 10;
+      filteredLeads = filteredLeads.slice(offset, offset + limit);
+    }
+    
+    // Validate each lead separately
     const validatedLeads: Lead[] = [];
-    
-    // Use type assertion to help TypeScript understand the data structure
-    const leadsData = data as Lead[];
-    
-    for (const lead of leadsData) {
+    for (const lead of filteredLeads) {
       try {
         validatedLeads.push(validateLead(lead));
       } catch (err) {
@@ -96,7 +100,7 @@ export async function getLeads(options?: LeadsQueryOptions): Promise<EnhancedLea
     
     return toEnhancedLeads(validatedLeads);
   } catch (err) {
-    console.error('Leads validation error:', err);
+    console.error('Error fetching leads:', err);
     return [];
   }
 }
