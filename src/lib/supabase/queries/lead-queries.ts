@@ -38,75 +38,40 @@ type LeadsQueryOptions = {
 
 /**
  * Get all leads with optional filtering and sorting
- * Using a simplified approach to avoid excessive type instantiation
+ * Using a simplified approach without excessive method chaining
  */
 export async function getLeads(options?: LeadsQueryOptions): Promise<EnhancedLead[]> {
-  // Build query parameters to avoid chaining method calls
-  const queryParams: {
-    table: string;
-    select: string;
-    filters: Array<{column: string; value: any}>;
-    orderBy?: {column: string; ascending: boolean};
-    pagination?: {limit?: number; offset?: number};
-  } = {
-    table: 'leads',
-    select: '*',
-    filters: []
-  };
+  // Start with the base query
+  let query = supabase.from('leads').select('*');
   
-  // Add filters if provided
+  // Apply filters if provided
   if (options?.filters) {
     for (const [key, value] of Object.entries(options.filters)) {
       if (value !== undefined && value !== null) {
-        queryParams.filters.push({column: key, value});
+        query = query.eq(key, value);
       }
     }
   }
   
-  // Add sorting if provided
+  // Apply sorting if provided
   if (options?.sortBy) {
-    queryParams.orderBy = {
-      column: options.sortBy,
-      ascending: options.sortOrder !== 'desc'
-    };
-  }
-  
-  // Add pagination if provided
-  if (options?.limit || options?.offset) {
-    queryParams.pagination = {
-      limit: options?.limit,
-      offset: options?.offset
-    };
-  }
-  
-  // Execute the query using the query parameters
-  // This approach avoids deep method chaining that causes type recursion
-  let query = supabase.from(queryParams.table).select(queryParams.select);
-  
-  // Apply filters
-  for (const filter of queryParams.filters) {
-    query = query.eq(filter.column, filter.value);
-  }
-  
-  // Apply sorting
-  if (queryParams.orderBy) {
-    query = query.order(queryParams.orderBy.column, {
-      ascending: queryParams.orderBy.ascending
+    query = query.order(options.sortBy, { 
+      ascending: options.sortOrder !== 'desc' 
     });
   }
   
-  // Apply pagination
-  if (queryParams.pagination?.limit) {
-    query = query.limit(queryParams.pagination.limit);
+  // Apply pagination if provided
+  if (options?.limit) {
+    query = query.limit(options.limit);
   }
   
-  if (queryParams.pagination?.offset) {
-    const start = queryParams.pagination.offset;
-    const end = start + (queryParams.pagination.limit || 10) - 1;
+  if (options?.offset) {
+    const start = options.offset;
+    const end = start + (options.limit || 10) - 1;
     query = query.range(start, end);
   }
   
-  // Execute the final query
+  // Execute the query
   const { data, error } = await query;
   
   if (error || !data) {
@@ -115,17 +80,20 @@ export async function getLeads(options?: LeadsQueryOptions): Promise<EnhancedLea
   }
   
   try {
-    // Use a type assertion and avoid complex type inference
-    const typedData = data as unknown as Lead[];
     // Process each lead separately to avoid chained type inference
     const validatedLeads: Lead[] = [];
-    for (const lead of typedData) {
+    
+    // Use type assertion to help TypeScript understand the data structure
+    const leadsData = data as Lead[];
+    
+    for (const lead of leadsData) {
       try {
         validatedLeads.push(validateLead(lead));
       } catch (err) {
         console.error('Individual lead validation error:', err);
       }
     }
+    
     return toEnhancedLeads(validatedLeads);
   } catch (err) {
     console.error('Leads validation error:', err);
