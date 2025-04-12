@@ -3,7 +3,7 @@
 // This file now re-exports functions from our Vercel AI implementation
 import { 
   getVideoAnalysisByUrl, 
-  saveVideoAnalysis 
+  saveVideoAnalysis as saveVideoAnalysisToStore 
 } from '@/lib/vercel-ai/video-analysis-api';
 import { VideoAnalysisData } from '@/lib/types';
 
@@ -26,7 +26,7 @@ export async function saveVideoAnalysis(
   videoUrl: string,
   userId?: string
 ): Promise<string | null> {
-  const success = await saveVideoAnalysis(analysisData, videoUrl);
+  const success = await saveVideoAnalysisToStore(analysisData, videoUrl);
   return success ? videoUrl : null;
 }
 
