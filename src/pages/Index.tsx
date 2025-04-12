@@ -25,6 +25,10 @@ const Index = () => {
 
   const handleSubmit = async (url: string) => {
     setVideoUrl(url);
+    toast({
+      title: "Processing Video",
+      description: "Analyzing the video with AI. This may take a moment...",
+    });
     fetchAnalysis(url);
   };
 

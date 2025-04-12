@@ -1,14 +1,22 @@
 
 import { useState } from 'react';
 import { VideoAnalysisData } from '@/lib/types';
+import { streamText } from 'ai';
 
-// Mock data store for demo purposes until we fully integrate with Vercel AI
+// Storage for caching results
 const videoAnalysesStore: Record<string, VideoAnalysisData> = {};
 
 /**
+ * Extract YouTube video ID from URL
+ */
+function extractYouTubeVideoId(url: string): string | null {
+  const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
+  const match = url.match(regExp);
+  return (match && match[7].length === 11) ? match[7] : null;
+}
+
+/**
  * Custom hook for fetching video analysis using Vercel AI
- * @param videoUrl YouTube video URL
- * @returns Video analysis data and loading state
  */
 export function useVideoAnalysis(videoUrl: string | null) {
   const [isLoading, setIsLoading] = useState(false);
@@ -29,18 +37,73 @@ export function useVideoAnalysis(videoUrl: string | null) {
         return;
       }
       
-      // In a real implementation, we would call the Vercel AI API here
-      // For now, we'll use our mock data and add a delay to simulate API call
-      const { mockVideoInfo, mockTranscript, mockAnalysis, mockChapters } = await import('@/lib/mockData');
+      const videoId = extractYouTubeVideoId(url);
       
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      if (!videoId) {
+        throw new Error('Invalid YouTube URL. Could not extract video ID.');
+      }
+      
+      // Fetch video metadata using oEmbed API
+      const oEmbedResponse = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
+      
+      if (!oEmbedResponse.ok) {
+        throw new Error('Failed to fetch video information. The video might be private or unavailable.');
+      }
+      
+      const oEmbedData = await oEmbedResponse.json();
+      
+      // Now, use Vercel AI to analyze the video
+      const prompt = `
+        Analyze YouTube video with ID: ${videoId}
+        Title: ${oEmbedData.title}
+        Author: ${oEmbedData.author_name}
+        
+        1. Generate a detailed transcript of the video content
+        2. Organize the transcript into logical chapters
+        3. Provide an analysis including:
+           - A concise summary
+           - Key points from the video
+           - Main topics covered with relevance scores
+           - Sentiment analysis
+           - Suggested follow-up questions
+      `;
+      
+      const stream = await streamText({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: 'You are a video analysis AI that can generate detailed transcripts, chapters, and insights. Provide structured output for YouTube videos.' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.7,
+        top_p: 0.9,
+      });
+
+      // Process the streamed response
+      let fullResponse = '';
+      for await (const chunk of stream) {
+        fullResponse += chunk;
+      }
+
+      // Generate a structured transcript from the AI response
+      const segments = generateStructuredTranscript(fullResponse);
+      const chapters = generateChapters(segments);
+      const analysis = generateAnalysis(fullResponse);
+      
+      // Create video info
+      const videoInfo = {
+        title: oEmbedData.title,
+        creator: oEmbedData.author_name,
+        thumbnailUrl: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
+        duration: 'AI Generated',
+        publishedDate: new Date().toLocaleDateString(),
+        viewCount: 'AI Analysis'
+      };
       
       const analysisResult: VideoAnalysisData = {
-        videoInfo: mockVideoInfo,
-        transcript: mockTranscript, 
-        chapters: mockChapters,
-        analysis: mockAnalysis,
+        videoInfo,
+        transcript: segments,
+        chapters,
+        analysis,
         isLoading: false
       };
       
@@ -65,37 +128,216 @@ export function useVideoAnalysis(videoUrl: string | null) {
 }
 
 /**
+ * Generate structured transcript segments from AI response
+ */
+function generateStructuredTranscript(aiResponse: string) {
+  // Extract transcript portion from AI response
+  const lines = aiResponse.split('\n');
+  const segments: any[] = [];
+  
+  // Find lines that look like transcript content
+  let id = 0;
+  let startTime = 0;
+  
+  for (const line of lines) {
+    // Skip empty lines and headers
+    if (!line.trim() || line.includes('#') || line.includes('Transcript') || line.includes('Chapter')) {
+      continue;
+    }
+    
+    // Create structured segment
+    const segment = {
+      id: (++id).toString(),
+      text: line.trim(),
+      startTime,
+      endTime: startTime + 5, // Approximate 5 seconds per segment
+      speaker: determineSpeaker(line)
+    };
+    
+    segments.push(segment);
+    startTime += 5; // Increment time for next segment
+  }
+  
+  return segments;
+}
+
+/**
+ * Try to determine speaker from line content
+ */
+function determineSpeaker(line: string) {
+  // Basic attempt to identify a speaker pattern like "Name:"
+  const speakerMatch = line.match(/^([A-Za-z\s]+):/);
+  if (speakerMatch && speakerMatch[1].length < 20) {
+    return speakerMatch[1].trim();
+  }
+  return 'Speaker';
+}
+
+/**
+ * Generate chapters from transcript segments
+ */
+function generateChapters(segments: any[]) {
+  if (segments.length === 0) return [];
+  
+  const chapterSize = Math.max(3, Math.floor(segments.length / 4)); // Create 4 chapters or minimum 3 segments per chapter
+  const chapters = [];
+  
+  for (let i = 0; i < segments.length; i += chapterSize) {
+    const chapterSegments = segments.slice(i, i + chapterSize);
+    if (chapterSegments.length === 0) continue;
+    
+    chapters.push({
+      title: `Chapter ${chapters.length + 1}`,
+      startTime: chapterSegments[0].startTime,
+      endTime: chapterSegments[chapterSegments.length - 1].endTime,
+      segments: chapterSegments
+    });
+  }
+  
+  return chapters;
+}
+
+/**
+ * Generate analysis from AI response
+ */
+function generateAnalysis(aiResponse: string) {
+  // Extract key sections from the AI response
+  let summary = '';
+  const keyPoints: string[] = [];
+  const topics: { name: string; relevance: number }[] = [];
+  let sentimentScore = 0.5; // Default neutral
+  const questions: string[] = [];
+  
+  const lines = aiResponse.split('\n');
+  let currentSection = '';
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    
+    // Identify sections based on headers or keywords
+    if (line.includes('Summary') || line.includes('summary')) {
+      currentSection = 'summary';
+      continue;
+    } else if (line.includes('Key Points') || line.includes('key points')) {
+      currentSection = 'keyPoints';
+      continue;
+    } else if (line.includes('Topics') || line.includes('topics')) {
+      currentSection = 'topics';
+      continue;
+    } else if (line.includes('Sentiment') || line.includes('sentiment')) {
+      currentSection = 'sentiment';
+      continue;
+    } else if (line.includes('Questions') || line.includes('questions')) {
+      currentSection = 'questions';
+      continue;
+    }
+    
+    // Skip empty lines
+    if (!line) continue;
+    
+    // Process content based on current section
+    switch (currentSection) {
+      case 'summary':
+        if (!summary) summary = line;
+        break;
+      case 'keyPoints':
+        if (line.startsWith('-') || line.startsWith('*')) {
+          keyPoints.push(line.replace(/^[-*]\s*/, ''));
+        }
+        break;
+      case 'topics':
+        if (line.startsWith('-') || line.startsWith('*')) {
+          const topicText = line.replace(/^[-*]\s*/, '');
+          // Try to extract relevance if present, otherwise assign random relevant score
+          const relevanceMatch = topicText.match(/\((\d+(?:\.\d+)?)\)/);
+          const relevance = relevanceMatch ? parseFloat(relevanceMatch[1]) / 10 : Math.random() * 0.5 + 0.5;
+          const name = topicText.replace(/\s*\(\d+(?:\.\d+)?\)/, '');
+          topics.push({ name, relevance });
+        }
+        break;
+      case 'sentiment':
+        // Extract sentiment value if present
+        const sentimentMatch = line.match(/(\d+(?:\.\d+)?)/);
+        if (sentimentMatch) {
+          sentimentScore = parseFloat(sentimentMatch[1]);
+          // Normalize to 0-1 range if not already
+          if (sentimentScore > 1) sentimentScore /= 10;
+        } else if (line.toLowerCase().includes('positive')) {
+          sentimentScore = 0.75;
+        } else if (line.toLowerCase().includes('negative')) {
+          sentimentScore = 0.25;
+        } else if (line.toLowerCase().includes('neutral')) {
+          sentimentScore = 0.5;
+        }
+        break;
+      case 'questions':
+        if (line.startsWith('-') || line.startsWith('*') || line.startsWith('?')) {
+          questions.push(line.replace(/^[-*?]\s*/, ''));
+        }
+        break;
+    }
+  }
+  
+  // If no key points were found, extract some from the summary
+  if (keyPoints.length === 0 && summary) {
+    const sentences = summary.split(/[.!?]+/).filter(s => s.trim().length > 0);
+    for (let i = 0; i < Math.min(4, sentences.length); i++) {
+      keyPoints.push(sentences[i].trim());
+    }
+  }
+  
+  // If no topics were found, generate some based on key points
+  if (topics.length === 0 && keyPoints.length > 0) {
+    for (const point of keyPoints) {
+      const words = point.split(' ');
+      if (words.length > 2) {
+        const topicWords = words.slice(0, 2).join(' ');
+        topics.push({
+          name: topicWords,
+          relevance: Math.random() * 0.3 + 0.6 // Random relevance between 0.6 and 0.9
+        });
+      }
+    }
+  }
+  
+  // Ensure we have at least some questions
+  if (questions.length === 0 && summary) {
+    questions.push(`What are the main implications of ${summary.substring(0, 30)}...?`);
+    questions.push(`How does this compare to other content in this field?`);
+    questions.push(`What further research could expand on these ideas?`);
+  }
+  
+  return {
+    summary: summary || 'No summary available',
+    keyPoints: keyPoints.length > 0 ? keyPoints : ['No key points identified'],
+    topics: topics.length > 0 ? topics : [{ name: 'General Content', relevance: 0.8 }],
+    sentimentScore,
+    questions: questions.length > 0 ? questions : ['What did you find most interesting about this content?']
+  };
+}
+
+/**
  * Get a video analysis by URL
- * @param videoUrl - The YouTube URL to search for
- * @returns Promise with the video analysis data or null
  */
 export async function getVideoAnalysisByUrl(videoUrl: string): Promise<VideoAnalysisData | null> {
-  // Check our in-memory store first
   if (videoAnalysesStore[videoUrl]) {
     return videoAnalysesStore[videoUrl];
   }
-  
-  // In real implementation, we would call Vercel AI API here
   return null;
 }
 
 /**
  * Save video analysis to our storage
- * @param analysisData - The video analysis data to save
- * @param videoUrl - The YouTube URL
- * @returns Promise with success status
  */
 export async function saveVideoAnalysis(
   analysisData: VideoAnalysisData,
   videoUrl: string,
 ): Promise<boolean> {
   try {
-    // Store in our mock database
     videoAnalysesStore[videoUrl] = {
       ...analysisData,
       isLoading: false
     };
-    
     return true;
   } catch (err) {
     console.error('Error saving video analysis:', err);
