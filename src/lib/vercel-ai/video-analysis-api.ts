@@ -1,7 +1,6 @@
 
 import { useState } from 'react';
 import { VideoAnalysisData } from '@/lib/types';
-import { streamText } from 'ai';
 
 // Storage for caching results
 const videoAnalysesStore: Record<string, VideoAnalysisData> = {};
@@ -16,7 +15,7 @@ function extractYouTubeVideoId(url: string): string | null {
 }
 
 /**
- * Custom hook for fetching video analysis using Vercel AI
+ * Custom hook for fetching video analysis
  */
 export function useVideoAnalysis(videoUrl: string | null) {
   const [isLoading, setIsLoading] = useState(false);
@@ -52,37 +51,47 @@ export function useVideoAnalysis(videoUrl: string | null) {
       
       const oEmbedData = await oEmbedResponse.json();
       
-      // Now, use Vercel AI to analyze the video
-      const prompt = `
-        Analyze YouTube video with ID: ${videoId}
-        Title: ${oEmbedData.title}
-        Author: ${oEmbedData.author_name}
-        
-        1. Generate a detailed transcript of the video content
-        2. Organize the transcript into logical chapters
-        3. Provide an analysis including:
-           - A concise summary
-           - Key points from the video
-           - Main topics covered with relevance scores
-           - Sentiment analysis
-           - Suggested follow-up questions
-      `;
+      // Use a direct fetch to the YouTube API (or a custom API) for transcript and analysis
+      // For demonstration purposes, we're using a simulated approach
       
-      const response = await streamText({
-        model: 'gpt-4o-mini', // Using as string is valid with the latest ai package
-        messages: [
-          { role: 'system', content: 'You are a video analysis AI that can generate detailed transcripts, chapters, and insights. Provide structured output for YouTube videos.' },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.7,
-        top_p: 0.9,
+      // Simulate analyzing the video by using metadata from YouTube
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY || 'dummy-key-for-demo'}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            { 
+              role: 'system', 
+              content: 'You are a video analysis AI that can generate detailed transcripts, chapters, and insights.' 
+            },
+            { 
+              role: 'user', 
+              content: `
+                Analyze YouTube video:
+                Title: ${oEmbedData.title}
+                Author: ${oEmbedData.author_name}
+                
+                Generate:
+                1. A transcript with at least 10 segments
+                2. 3-5 logical chapters
+                3. A summary
+                4. 5 key points
+                5. 3-5 main topics with relevance scores
+                6. A sentiment score (0-1)
+                7. 3 follow-up questions
+              `
+            }
+          ]
+        })
       });
-
-      // Process the streamed response
-      let fullResponse = '';
-      for await (const chunk of response) {
-        fullResponse += chunk;
-      }
+      
+      // Process the response
+      const data = await response.json();
+      const fullResponse = data?.choices?.[0]?.message?.content || "No analysis generated.";
 
       // Generate a structured transcript from the AI response
       const segments = generateStructuredTranscript(fullResponse);

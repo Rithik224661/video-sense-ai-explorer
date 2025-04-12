@@ -1,11 +1,10 @@
 
-import { Client } from '@supabase/supabase-js';
-import type { Database } from '@/lib/supabase/custom-types';
+import { supabase } from '@/integrations/supabase/client';
 
 // Import individual queries from queries folders
 import {
   createLead,
-  getLeadById,
+  getLead as getLeadById,
   getLeads,
   updateLead,
   deleteLead
